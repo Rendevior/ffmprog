@@ -80,7 +80,8 @@ progbar(){
 	left="$(( 40 - done ))"
 	fill="$(printf "\033[7m\033[38;5;$(( (done % 103 / 20) + 101 ))m%${done}s\033[0m")"
 	empty="$(printf "%${left}s")"
-	printf '\r%s %s   %s' "[${fill}${empty}]" "${prog}%" "${3}"
+	printf '\033[2K\r%s — %s : %s' "¦${fill}${empty}¦" "${prog}%" "${3}"
+	unset prog "done" left fill empty
 }
 
 dep_check(){
