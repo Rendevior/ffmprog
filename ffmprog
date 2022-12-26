@@ -3,8 +3,11 @@
 # ffmprog
 # Easy and Simple progressbar for ffmpeg
 
-trap 'rm ~/.vstats ; save_terminal ; pkill -9 ffmpeg ; printf "\n\n" ; exit 1' INT HUP
-[ -e ~/.vstats ] && rm ~/.vstats
+mkdir -p -m 700 "/tmp/ffmprog"
+VSTAT_FILE="/tmp/ffmprog/$$.vstat"
+
+trap 'rm "${VSTAT_FILE}" ; save_terminal ; pkill -9 ffmpeg ; printf "\n\n" ; exit 1' INT HUP
+[ -e "${VSTAT_FILE}" ] && rm "${VSTAT_FILE}"
 
 save_terminal(){
 	printf "\033[?25h"	# Show Cursor
@@ -51,16 +54,16 @@ get_infos(){
 }
 
 run_background(){
-	ffmpeg -progress ~/.vstats -y "${@}" 2>/dev/null &
+	ffmpeg -progress "${VSTAT_FILE}" -y "${@}" 2>/dev/null &
 	ffmpeg_pid="${!}"
 }
 
 progress(){
 	printf "\033[?25l"
 	while [ -e "/proc/${ffmpeg_pid}" ]; do
-		if [ -e ~/.vstats ]; then
-			cur_frame="$(grep "frame=" ~/.vstats | tail -n 1)" cur_frame="${cur_frame##*=}"
-			cur_bitr="$(grep "bitrate=" ~/.vstats | tail -n 1)" cur_bitr="${cur_bitr##*=}"
+		if [ -e "${VSTAT_FILE}" ]; then
+			cur_frame="$(grep "frame=" "${VSTAT_FILE}" | tail -n 1)" cur_frame="${cur_frame##*=}"
+			cur_bitr="$(grep "bitrate=" "${VSTAT_FILE}" | tail -n 1)" cur_bitr="${cur_bitr##*=}"
 			if [ -n "${cur_frame}" ]; then
 				progbar "${cur_frame}" "${total_frames}" "Status: ${cur_frame:-0}/${total_frames}"
 				printf '\n%s\n%s\n%s\033[3A' "ffmpeg PID: ${ffmpeg_pid}     " "Length: ${vid_dur}     " "Bitrate: ${cur_bitr:-0kbits/s}     "
@@ -71,7 +74,7 @@ progress(){
 	save_terminal
 	sanitize_terminal 5 4 4 4
 	[ "${prog:-0}" -ge 90 ] && suc "\nDownload Complete!!"
-	[ -e ~/.vstats ] && rm ~/.vstats
+	[ -e "${VSTAT_FILE}" ] && rm "${VSTAT_FILE}"
 }
 
 progbar(){
