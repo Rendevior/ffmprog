@@ -1,9 +1,10 @@
 #!/bin/sh
+#shellcheck disable=2017
 
 # ffmprog
 # Easy and Simple progressbar for ffmpeg
 
-mkdir -p -m 700 "/tmp/ffmprog"
+[ -d "/tmp/ffprog" ] || (mkdir -p "/tmp/ffmprog" ; chmod 0700 /tmp /tmp/ffmprog)
 VSTAT_FILE="/tmp/ffmprog/$$.vstat"
 
 trap 'rm "${VSTAT_FILE}" ; save_terminal ; pkill -9 ffmpeg ; printf "\n\n" ; exit 1' INT HUP
@@ -17,7 +18,7 @@ save_terminal(){
 sanitize_terminal(){
 	printf '%b' "\033[${1}A"
 	[ -n "${4}" ] && printf '%b' "\033[${4}B"
-	printf "%${2}s" | sed "s_[[:space:]]_\n$(printf "%${termcols}s")_g"
+	printf "%${2}s" | sed "s_[[:space:]]_\n$(printf "\033[2K\r")_g"
 	[ -n "${3}" ] && printf '%b' "\033[${3}A"
 }
 
@@ -36,21 +37,19 @@ die(){
 }
 
 get_infos(){
-	if [ -z "${1}" ]; then
-		die "1" "No File/URL Returned"
-	fi
+	[ -z "${1}" ] && die 127 "No File/URL Returned"
 	inf_meta="$(ffmpeg -i "${1}" 2>&1)"
 	vid_dur="$(printf '%s' "${inf_meta}" | sed -n "s/.* Duration: \([^,]*\), start: .*/\1/p")"
 	vid_fps="$(printf '%s' "${inf_meta}" | sed -nE '/fps/ {s_.*, (.*) fps.*_\1_p;q}')"
 	if [ -z "${vid_dur}" ] || [ -z "${vid_fps}" ]; then
-		die "1" "An Error Occured"
+		die 1 "An Error Occured"
 	fi
 	# Time
 	total_frames="$(echo "${vid_dur}" | sed -E "s/^([0-9]+):([0-9]{2}):([0-9]{2}\.[0-9]+)$/\((\1 * 60 + \2) * 60 + \3) * ${vid_fps}/" | bc | awk -F . '{print $1}')"
 }
 
 run_background(){
-	ffmpeg -progress "${VSTAT_FILE}" -y "${@}" 2>/dev/null &
+	ffmpeg -hide_banner -loglevel error -progress "${VSTAT_FILE}" -y "${@}" 2>/dev/null &
 	ffmpeg_pid="${!}"
 }
 
@@ -69,7 +68,11 @@ progress(){
 	done
 	save_terminal
 	sanitize_terminal 5 4 4 4
-	[ "${prog:-0}" -ge 90 ] && suc "\nDownload Complete!!"
+	if wait "${ffmpeg_pid}" >/dev/null; then
+		suc "\nEncoding Complete!!"
+	else
+		die 1 "Theres an error occured"
+	fi
 	[ -e "${VSTAT_FILE}" ] && rm "${VSTAT_FILE}"
 }
 
@@ -85,10 +88,9 @@ progbar(){
 
 dep_check(){
 	for deppack; do
-		if ! command -v "${deppack}" >/dev/null ; then
-			die "1" "Program \"${deppack}\" is not installed."
-		fi
+		command -v "${deppack}" >/dev/null || is_err="1"
 	done
+	[ "${is_err}" = "1" ] && die 1 "Program \"${deppack}\" is not installed."
 }
 
 # Variable
